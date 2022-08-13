@@ -1,13 +1,3 @@
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#define GLM_FORCE_RADIANS
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
@@ -16,11 +6,22 @@
 #include <vector>
 #include <cstring>
 #include <cstdlib>
-#include <cstdint>
-#include <limits>
 #include <array>
 #include <optional>
 #include <set>
+
+#include <vulkan/vulkan.h>
+#include <X11/Xlib.h>
+#include "vulkan/vulkan_xlib.h"
+#include "vulkan/vulkan_core.h"
+#include "WindowX.hpp"
+#include "VertexMath.hpp"
+#include "witch.h"
+
+#define VK_USE_PLATFORM_XLIB_KHR
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -73,8 +74,8 @@ struct SwapChainSupportDetails {
 };
 
 struct Vertex {
-    glm::vec2 pos;
-    glm::vec3 color;
+    vec2 pos;
+    vec3 color;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -103,9 +104,9 @@ struct Vertex {
 };
 
 struct UniformBufferObject {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
+    alignas(16) mat4 model;
+    alignas(16) mat4 view;
+    alignas(16) mat4 proj;
 };
 
 const std::vector<Vertex> vertices = {
@@ -129,10 +130,11 @@ public:
     }
 
 private:
-    GLFWwindow* window;
+    GLVM::Core::CWindowX Window;
 
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkXlibSurfaceCreateInfoKHR createXlibSurfaceInfo;
     VkSurfaceKHR surface;
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -179,19 +181,19 @@ private:
     bool framebufferResized = false;
 
     void initWindow() {
-        glfwInit();
+        createXlibSurfaceInfo.dpy = Window.GetDisplay();
+        createXlibSurfaceInfo.window = Window.GetWindow();
 
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
-        glfwSetWindowUserPointer(window, this);
-        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+        createXlibSurfaceInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+        createXlibSurfaceInfo.pNext = nullptr;
+        createXlibSurfaceInfo.flags = 0;
+        ///< glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     }
 
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
-        app->framebufferResized = true;
-    }
+    // static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    //     auto app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
+    //     app->framebufferResized = true;
+    // }
 
     void initVulkan() {
         createInstance();
@@ -217,9 +219,18 @@ private:
     }
 
     void mainLoop() {
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
+                     bool flag = false;
+        int var = 0;
+        while (1) {
+            ///< Render method.
+            if(flag)
+                std::cin >> var;
+
+            if(var == 2)
+                break;
+
             drawFrame();
+            flag = true;
         }
 
         vkDeviceWaitIdle(device);
@@ -278,19 +289,16 @@ private:
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
-
-        glfwDestroyWindow(window);
-
-        glfwTerminate();
+        Window.Close();
     }
 
     void recreateSwapChain() {
         int width = 0, height = 0;
-        glfwGetFramebufferSize(window, &width, &height);
-        while (width == 0 || height == 0) {
-            glfwGetFramebufferSize(window, &width, &height);
-            glfwWaitEvents();
-        }
+        // glfwGetFramebufferSize(window, &width, &height);
+        // while (width == 0 || height == 0) {
+        //     glfwGetFramebufferSize(window, &width, &height);
+        //     glfwWaitEvents();
+        // }
 
         vkDeviceWaitIdle(device);
 
@@ -318,7 +326,7 @@ private:
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
 
-        auto extensions = getRequiredExtensions();
+        std::vector<const char*> extensions = getRequiredExtensions();
         createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -360,7 +368,7 @@ private:
     }
 
     void createSurface() {
-        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+        if (vkCreateXlibSurfaceKHR(instance, &createXlibSurfaceInfo, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("failed to create window surface!");
         }
     }
@@ -1131,9 +1139,18 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        ubo.model = Rotate(mat4(1.0), vec3(0.0, 0.0, 0.1), time * 90);
+        ubo.view = LookAtRH(vec3(2.0f, 2.0f, 2.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.1f));
+        mat4 tProjection_Matrix(1.0);
+        float f = 10, n = 0.1;
+        float fov = 90;
+        float S = 1 / std::tan((fov/2) * (PI / 180));
+        tProjection_Matrix[0][0] = S;
+        tProjection_Matrix[1][1] = S;
+        tProjection_Matrix[2][2] = -(f / (f - n));
+        tProjection_Matrix[2][3] = -1;
+        tProjection_Matrix[3][2] = -((f * n) / (f - n));
+        ubo.proj = tProjection_Matrix;
         ubo.proj[1][1] *= -1;
 
         void* data;
@@ -1245,7 +1262,7 @@ private:
             return capabilities.currentExtent;
         } else {
             int width, height;
-            glfwGetFramebufferSize(window, &width, &height);
+//            glfwGetFramebufferSize(window, &width, &height);
 
             VkExtent2D actualExtent = {
                 static_cast<uint32_t>(width),
@@ -1346,17 +1363,15 @@ private:
     }
 
     std::vector<const char*> getRequiredExtensions() {
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        std::vector<const char*> pRequiredExtentions = {"VK_KHR_xlib_surface",
+            "VK_EXT_acquire_xlib_display", "VK_KHR_display", "VK_KHR_surface",
+            "VK_EXT_direct_mode_display"};
 
         if (enableValidationLayers) {
-            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            pRequiredExtentions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
 
-        return extensions;
+        return pRequiredExtentions;
     }
 
     bool checkValidationLayerSupport() {
