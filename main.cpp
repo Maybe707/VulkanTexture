@@ -20,9 +20,6 @@
 
 #define VK_USE_PLATFORM_XLIB_KHR
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
@@ -733,12 +730,14 @@ private:
 
     void createTextureImage() {
         int texWidth, texHeight, texChannels;
-//        stbi_uc* pixels = stbi_load("textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-//        VkDeviceSize imageSize = texWidth * texHeight * 4;
+        // stbi_uc* pixels = stbi_load("textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+        // VkDeviceSize imageSize = texWidth * texHeight * 4;
+        
         VkDeviceSize imageSize = witch_dat_len;
         unsigned char* pixels = witch_dat;
-        texWidth = 32;
-        texHeight = 32;
+        texWidth = 128;
+        texHeight = 128;
+        
         if (!pixels) {
             throw std::runtime_error("failed to load texture image!");
         }
