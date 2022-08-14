@@ -1210,7 +1210,9 @@ private:
 
         UniformBufferObject ubo{};
         ubo.model = Rotate(mat4(1.0), vec3(0.0, 0.0, 0.1), time * 90);
+//        ubo.model = Rotate(mat4(1.0), vec3(0.0, 0.0, 0.1), 0.0);
         ubo.view = LookAtRH(vec3(2.0f, 2.0f, 2.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.1f));
+//        ubo.view = LookAtRH(vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.1f, 0.0f));
         mat4 tProjection_Matrix(1.0);
         float f = 10, n = 0.1;
         float fov = 90;
